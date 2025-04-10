@@ -248,6 +248,14 @@ def main():
         st.session_state['parsed_data'] = None
 
     with st.sidebar:
+        st.header("分析说明")
+        st.markdown("""
+        此工具用于可视化分析模型对比测试结果，包含以下内容：
+        - 模型性能总览（字错率、处理时间）
+        - 平均字错率对比图
+        """)
+        
+        st.markdown("---")
         st.header("选择结果文件")
 
         uploaded_file = st.file_uploader(
@@ -256,14 +264,6 @@ def main():
             key='result_uploader',
             help="上传文件后将自动开始分析。"
         )
-
-        st.markdown("---")
-        st.markdown("### 分析说明")
-        st.markdown("""
-        此工具用于可视化分析模型对比测试结果，包含以下内容：
-        - 模型性能总览（字错率、处理时间）
-        - 平均字错率对比图
-        """)
 
     if uploaded_file is not None:
         model_names, file_results, stats, current_content_hash = parse_results_file(uploaded_file)
