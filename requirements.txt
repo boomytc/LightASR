@@ -1,0 +1,12 @@
+numpy
+torch
+torchaudio
+librosa
+gradio
+omegaconf
+tqdm
+kaldiio
+modelscope
+funasr
+matplotlib
+plotly
