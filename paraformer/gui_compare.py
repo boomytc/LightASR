@@ -36,8 +36,11 @@ class CompareUI(QMainWindow):
         model_label = QLabel("选择模型:")
         model_button = QPushButton("添加模型")
         model_button.clicked.connect(self.add_model)
+        remove_model_button = QPushButton("删除模型")  # 新增删除模型按钮
+        remove_model_button.clicked.connect(self.remove_model)  # 绑定删除模型方法
         model_layout.addWidget(model_label)
         model_layout.addWidget(model_button)
+        model_layout.addWidget(remove_model_button)  # 添加删除按钮到布局
         layout.addLayout(model_layout)
 
         # 模型列表
@@ -151,6 +154,29 @@ class CompareUI(QMainWindow):
                 self.models.append((model_name, model_path))
                 # 在列表中显示模型名称和路径
                 self.model_list.addItem(f"名称: {model_name}, 路径: {model_path}")
+
+    def remove_model(self):
+        """从列表中删除选定的模型"""
+        selected_items = self.model_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "警告", "请先选择要删除的模型！")
+            return
+            
+        for item in selected_items:
+            row = self.model_list.row(item)
+            if 0 <= row < len(self.models):
+                model_name = self.models[row][0]
+                # 询问用户确认删除
+                reply = QMessageBox.question(self, "确认删除", 
+                                            f"确定要删除模型 '{model_name}' 吗？", 
+                                            QMessageBox.StandardButton.Yes | 
+                                            QMessageBox.StandardButton.No, 
+                                            QMessageBox.StandardButton.No)
+                
+                if reply == QMessageBox.StandardButton.Yes:
+                    # 从models列表和列表控件中删除模型
+                    self.models.pop(row)
+                    self.model_list.takeItem(row)
 
     def select_jsonl(self):
         path, _ = QFileDialog.getOpenFileName(self, "选择 JSONL 文件", "", "JSONL Files (*.jsonl)")
