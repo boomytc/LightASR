@@ -245,7 +245,7 @@ def launch():
                 args[0],  # audio_inputs
                 args[1],  # language_inputs
                 args[2],  # mode_inputs
-                args[3] == "是",  # distinguish_speaker_inputs
+                args[3],  # distinguish_speaker_inputs
                 args[4],  # asr_model_inputs
                 args[5],  # vad_model_inputs
                 args[6],  # punc_model_inputs
@@ -264,7 +264,7 @@ def launch():
             outputs=text_outputs
         )
 
-    demo.launch()
+    demo.launch(inbrowser=True)
 
 
 if __name__ == "__main__":
