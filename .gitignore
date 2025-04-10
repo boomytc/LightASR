@@ -1,0 +1,5 @@
+models/fl_paraformer_models
+models/paraformer_models
+models/punc_models
+models/spk_models
+models/vad_models

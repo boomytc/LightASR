@@ -11,3 +11,5 @@ funasr
 matplotlib
 plotly
 psutil
+streamlit
+pyqt6
