@@ -10,3 +10,4 @@ modelscope
 funasr
 matplotlib
 plotly
+psutil
