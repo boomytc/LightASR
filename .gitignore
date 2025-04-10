@@ -3,3 +3,5 @@ models/paraformer_models
 models/punc_models
 models/spk_models
 models/vad_models
+__pycache__/
+*.pyc
