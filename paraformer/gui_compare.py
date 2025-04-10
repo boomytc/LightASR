@@ -6,6 +6,7 @@ from PyQt6.QtCore import Qt, QProcess, pyqtSlot
 import subprocess
 import sys
 import os
+import signal
 
 class CompareUI(QMainWindow):
     def __init__(self):
@@ -15,6 +16,7 @@ class CompareUI(QMainWindow):
 
         self.models = []
         self.process = QProcess()
+        self.streamlit_process = None  # 添加一个变量来跟踪Streamlit进程
         self.process.readyReadStandardOutput.connect(self.handle_stdout)
         self.process.readyReadStandardError.connect(self.handle_stderr)
         self.process.finished.connect(self.process_finished)
@@ -324,6 +326,11 @@ class CompareUI(QMainWindow):
 
     def analyze_results(self):
         """执行 streamlit run webui_compare_results.py 命令"""
+        # 如果已经有Streamlit进程在运行，先终止它
+        if self.streamlit_process and self.streamlit_process.poll() is None:
+            self.terminate_streamlit()
+            self.terminal_output.appendPlainText("终止了之前运行的Streamlit进程")
+            
         # 获取当前脚本所在的目录
         current_dir = os.path.dirname(os.path.abspath(__file__))
         webui_script_path = os.path.join(current_dir, "webui_compare_results.py")
@@ -341,7 +348,7 @@ class CompareUI(QMainWindow):
         try:
             # 使用 Popen 在后台启动 streamlit，不阻塞 GUI
             # 注意：Streamlit 的输出通常在它自己的终端/浏览器中，而不是这里
-            subprocess.Popen(command, cwd=current_dir) 
+            self.streamlit_process = subprocess.Popen(command, cwd=current_dir)
             self.terminal_output.appendPlainText("Streamlit 进程已启动。请检查新的终端窗口或浏览器。")
         except FileNotFoundError:
              QMessageBox.critical(self, "错误", "未找到 'streamlit' 命令。请确保 Streamlit 已安装并配置在系统 PATH 中。")
@@ -349,6 +356,43 @@ class CompareUI(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "错误", f"启动 Streamlit 失败: {e}")
             self.terminal_output.appendHtml(f'<span style="color:red;">启动 Streamlit 失败: {e}</span>')
+
+    def terminate_streamlit(self):
+        """终止Streamlit进程"""
+        if self.streamlit_process:
+            try:
+                # 在Windows上，使用taskkill确保终止整个进程树
+                if sys.platform == "win32":
+                    subprocess.call(['taskkill', '/F', '/T', '/PID', str(self.streamlit_process.pid)])
+                else:
+                    # 在Unix/Linux/Mac上，使用进程组ID终止整个进程树
+                    os.killpg(os.getpgid(self.streamlit_process.pid), signal.SIGTERM)
+                    # 如果进程仍在运行，强制终止
+                    if self.streamlit_process.poll() is None:
+                        self.streamlit_process.terminate()
+                        # 给进程一些时间来终止
+                        try:
+                            self.streamlit_process.wait(timeout=3)
+                        except subprocess.TimeoutExpired:
+                            self.streamlit_process.kill()  # 强制终止
+                self.streamlit_process = None
+            except Exception as e:
+                self.terminal_output.appendHtml(f'<span style="color:orange;">警告: 终止Streamlit进程时出错: {e}</span>')
+    
+    def closeEvent(self, event):
+        """重写关闭事件，确保在窗口关闭时终止所有子进程"""
+        # 终止可能正在运行的比较进程
+        if self.process.state() == QProcess.ProcessState.Running:
+            self.process.terminate()
+            # 给进程一些时间来终止
+            if not self.process.waitForFinished(1000):
+                self.process.kill()  # 强制终止
+        
+        # 终止Streamlit进程
+        self.terminate_streamlit()
+        
+        # 让窗口正常关闭
+        super().closeEvent(event)
 
     @pyqtSlot()
     def handle_stdout(self):
