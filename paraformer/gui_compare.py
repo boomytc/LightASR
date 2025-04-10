@@ -126,10 +126,15 @@ class CompareUI(QMainWindow):
         proc_layout.addWidget(self.proc_per_gpu)
         layout.addLayout(proc_layout)
 
-        # 确认按钮
+        # 确认按钮 和 结果分析按钮 (修改)
+        button_layout = QHBoxLayout() # 使用水平布局放置按钮
         confirm_button = QPushButton("确认")
         confirm_button.clicked.connect(self.confirm)
-        layout.addWidget(confirm_button)
+        analyze_button = QPushButton("结果分析") # 新增结果分析按钮
+        analyze_button.clicked.connect(self.analyze_results) # 绑定分析方法
+        button_layout.addWidget(confirm_button)
+        button_layout.addWidget(analyze_button)
+        layout.addLayout(button_layout) # 将按钮布局添加到主布局
         
         control_panel.setLayout(layout)
         
@@ -316,6 +321,34 @@ class CompareUI(QMainWindow):
         except Exception as e:
             self.terminal_output.appendHtml(f'<span style="color:red;">启动进程失败: {e}</span>')
             QMessageBox.critical(self, "错误", f"启动进程失败: {e}")
+
+    def analyze_results(self):
+        """执行 streamlit run webui_compare_results.py 命令"""
+        # 获取当前脚本所在的目录
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        webui_script_path = os.path.join(current_dir, "webui_compare_results.py")
+
+        if not os.path.exists(webui_script_path):
+            QMessageBox.critical(self, "错误", f"Web UI 脚本未找到: {webui_script_path}")
+            self.terminal_output.appendHtml(f'<span style="color:red;">错误: Web UI 脚本未找到: {webui_script_path}</span>')
+            return
+
+        command = ["streamlit", "run", webui_script_path]
+        
+        self.terminal_output.appendPlainText(f"尝试启动结果分析 Web UI: {' '.join(command)}")
+        self.terminal_output.appendPlainText("-----------------------------------")
+
+        try:
+            # 使用 Popen 在后台启动 streamlit，不阻塞 GUI
+            # 注意：Streamlit 的输出通常在它自己的终端/浏览器中，而不是这里
+            subprocess.Popen(command, cwd=current_dir) 
+            self.terminal_output.appendPlainText("Streamlit 进程已启动。请检查新的终端窗口或浏览器。")
+        except FileNotFoundError:
+             QMessageBox.critical(self, "错误", "未找到 'streamlit' 命令。请确保 Streamlit 已安装并配置在系统 PATH 中。")
+             self.terminal_output.appendHtml(f'<span style="color:red;">错误: 未找到 \'streamlit\' 命令。请确保 Streamlit 已安装并配置在系统 PATH 中。</span>')
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"启动 Streamlit 失败: {e}")
+            self.terminal_output.appendHtml(f'<span style="color:red;">启动 Streamlit 失败: {e}</span>')
 
     @pyqtSlot()
     def handle_stdout(self):
