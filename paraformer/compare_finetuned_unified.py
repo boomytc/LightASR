@@ -353,11 +353,13 @@ def main():
                       help='模型路径列表，格式: 模型名称 模型路径 [模型名称 模型路径 ...]')
     parser.add_argument('--result', required=True, help='结果保存目录路径')
     parser.add_argument('--proc_per_gpu', type=int, default=1, help='每块GPU启动的进程数')
+    parser.add_argument('--output_filename', default='results.txt', help='结果输出文件名 (默认: results.txt)') # 新增参数
     args = parser.parse_args()
     
     # 创建结果保存目录
     os.makedirs(args.result, exist_ok=True)
-    result_file = os.path.join(args.result, 'results.txt')
+    # 使用 args.output_filename 构建结果文件路径
+    result_file = os.path.join(args.result, args.output_filename) 
     
     # 解析模型参数
     if len(args.models) % 2 != 0:

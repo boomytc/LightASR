@@ -5,6 +5,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QFileDialog, QVBoxLayout
 from PyQt6.QtCore import Qt, QProcess, pyqtSlot
 import subprocess
 import sys
+import os
 
 class CompareUI(QMainWindow):
     def __init__(self):
@@ -105,6 +106,15 @@ class CompareUI(QMainWindow):
         result_layout.addWidget(result_button)
         result_layout.addWidget(open_result_button)
         layout.addLayout(result_layout)
+
+        # 结果文件名设置 (新增)
+        filename_layout = QHBoxLayout()
+        filename_label = QLabel("结果文件名 (可选):")
+        self.result_filename = QLineEdit()
+        self.result_filename.setPlaceholderText("默认: results.txt") # 提示默认值
+        filename_layout.addWidget(filename_label)
+        filename_layout.addWidget(self.result_filename)
+        layout.addLayout(filename_layout)
 
         # 每 GPU 进程数设置
         proc_layout = QHBoxLayout()
@@ -237,6 +247,15 @@ class CompareUI(QMainWindow):
             models_str.append(name)
             models_str.append(path)
         data_type = "jsonl" if self.data_type_group.checkedButton().text() == "JSONL" else "wav_txt"
+        
+        # 获取自定义文件名，如果为空则使用默认值
+        output_filename = self.result_filename.text().strip()
+        if not output_filename:
+            output_filename = "results.txt"
+        # 确保文件名以 .txt 结尾
+        if not output_filename.endswith(".txt"):
+            output_filename += ".txt"
+            
         result = {
             "models": models_str,
             "data_type": data_type,
@@ -244,12 +263,18 @@ class CompareUI(QMainWindow):
             "wav_path": self.wav_path.text(),
             "txt_path": self.txt_path.text(),
             "result_path": self.result_path.text(),
-            "proc_per_gpu": self.proc_per_gpu.value()
+            "proc_per_gpu": self.proc_per_gpu.value(),
+            "output_filename": output_filename # 添加文件名到字典
         }
 
         # 验证保存路径是否为空
         if not result["result_path"]:
             QMessageBox.warning(self, "警告", "请先选择结果保存路径！")
+            return
+        
+        # 验证模型列表是否为空
+        if not result["models"]:
+            QMessageBox.warning(self, "警告", "请至少添加一个模型！")
             return
 
         # 清空终端输出
@@ -258,15 +283,24 @@ class CompareUI(QMainWindow):
 
         # 构造命令行参数
         command = [
-            "python", "-u", "/media/fl01/data02/WorkSpace/FunASR/paraformer/compare_finetuned_unified.py",
+            "python", "-u", "/media/fl01/data02/WorkSpace/LightASR/paraformer/compare_finetuned_unified.py", # 注意这里的路径可能需要根据实际情况调整
             "--models", *result["models"],
             "--result", result["result_path"],
-            "--proc_per_gpu", str(result["proc_per_gpu"])
+            "--proc_per_gpu", str(result["proc_per_gpu"]),
+            "--output_filename", result["output_filename"] # 添加自定义文件名参数
         ]
 
         if data_type == "jsonl":
+            # 验证 JSONL 路径是否为空
+            if not result["jsonl_path"]:
+                QMessageBox.warning(self, "警告", "请选择 JSONL 文件路径！")
+                return
             command.extend(["--jsonl", result["jsonl_path"]])
         else:
+            # 验证 WAV/TXT 路径是否为空
+            if not result["wav_path"] or not result["txt_path"]:
+                QMessageBox.warning(self, "警告", "请选择 WAV 和 TXT 目录路径！")
+                return
             command.extend(["--wav_txt_dirs", result["wav_path"], result["txt_path"]])
 
         # 在终端中显示将要执行的命令
@@ -275,8 +309,9 @@ class CompareUI(QMainWindow):
 
         # 使用QProcess异步运行命令
         try:
-            # 设置工作目录为脚本所在目录
-            self.process.setWorkingDirectory("/media/fl01/data02/WorkSpace/FunASR/paraformer/")
+            # 设置工作目录为脚本所在目录的上层目录，以便脚本能正确找到相对路径
+            script_dir = os.path.dirname("/media/fl01/data02/WorkSpace/LightASR/paraformer/compare_finetuned_unified.py")
+            self.process.setWorkingDirectory(script_dir)
             self.process.start(command[0], command[1:])
         except Exception as e:
             self.terminal_output.appendHtml(f'<span style="color:red;">启动进程失败: {e}</span>')
