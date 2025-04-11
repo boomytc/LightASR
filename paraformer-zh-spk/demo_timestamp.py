@@ -73,7 +73,13 @@ for result in res:
     if 'sentence_info' in result:
         # 使用 sentence_info 中的分句信息
         for sentence in result['sentence_info']:
-            speaker = f"spk{sentence.get('spk', 'unknown')}"
+            # 将说话人编号加1，从1开始
+            spk_value = sentence.get('spk')
+            if spk_value is not None and isinstance(spk_value, int):
+                speaker = f"spk{spk_value + 1}"
+            else:
+                speaker = "spk1"  # 默认为spk1
+            
             # 去除句尾标点符号
             text = sentence.get('text', '').rstrip(',.。，!！?？')
             start_time = format_timestamp(sentence.get('start', 0))
@@ -83,7 +89,13 @@ for result in res:
             formatted_results.append(formatted_line)
     elif 'timestamp' in result:
         # 如果没有 sentence_info，则使用原来的处理方式
-        speaker = f"spk{result.get('spk', 'unknown')}"
+        # 将说话人编号加1，从1开始
+        spk_value = result.get('spk')
+        if spk_value is not None and isinstance(spk_value, int):
+            speaker = f"spk{spk_value + 1}"
+        else:
+            speaker = "spk1"  # 默认为spk1
+            
         # 去除句尾标点符号
         text = result.get('text', '').rstrip(',.。，!！?？')
         
