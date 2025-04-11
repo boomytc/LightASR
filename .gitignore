@@ -5,3 +5,4 @@ models/spk_models
 models/vad_models
 __pycache__/
 *.pyc
+.vscode/settings.json
