@@ -10,9 +10,16 @@ import argparse
 import sys
 
 def format_timestamp(ms):
-    """将毫秒转换为 HH:MM:SS 格式"""
-    seconds = ms / 1000  # 转换为秒
-    return str(datetime.timedelta(seconds=seconds)).split('.')[0]
+    """将毫秒转换为 HH:MM:SS,ms 格式"""
+    seconds = int(ms / 1000)  # 整数秒
+    milliseconds = int(ms % 1000)  # 毫秒部分
+    
+    hours = seconds // 3600
+    seconds %= 3600
+    minutes = seconds // 60
+    seconds %= 60
+    
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 # 添加命令行参数解析
 parser = argparse.ArgumentParser(description='使用FunASR进行语音识别并提取时间戳')
@@ -71,7 +78,7 @@ for result in res:
             start_time = format_timestamp(sentence.get('start', 0))
             end_time = format_timestamp(sentence.get('end', 0))
             
-            formatted_line = f"{start_time} - {end_time}  {speaker}   {text}"
+            formatted_line = f"{start_time} --> {end_time}  {speaker}   {text}"
             formatted_results.append(formatted_line)
     elif 'timestamp' in result:
         # 如果没有 sentence_info，则使用原来的处理方式
@@ -82,7 +89,7 @@ for result in res:
             start_time = format_timestamp(ts[0])
             end_time = format_timestamp(ts[1])
             
-            formatted_line = f"{start_time} - {end_time}  {speaker}   {text}"
+            formatted_line = f"{start_time} --> {end_time}  {speaker}   {text}"
             formatted_results.append(formatted_line)
     else:
         # 如果没有时间戳信息，直接添加文本
