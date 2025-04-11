@@ -2,9 +2,9 @@ import gradio as gr
 from funasr import AutoModel
 import os
 import datetime
-import configparser # 添加 configparser
+import configparser
 
-# Helper function from demo_timestamp.py
+# 辅助函数，参考自 demo_timestamp.py
 def format_timestamp(ms):
     """将毫秒转换为 HH:MM:SS,ms 格式"""
     seconds = int(ms / 1000)
@@ -15,7 +15,7 @@ def format_timestamp(ms):
     seconds %= 60
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
-# --- Model Configuration from model.conf ---
+# --- 从 model.conf 加载模型配置 ---
 config = configparser.ConfigParser()
 config_path = os.path.join(os.path.dirname(__file__), 'model.conf')
 if not os.path.exists(config_path):
@@ -34,7 +34,7 @@ default_vad = list(vad_models.keys())[0] if vad_models else None
 default_punc = list(punc_models.keys())[0] if punc_models else None
 default_spk = list(spk_models.keys())[0] if spk_models else None
 
-# --- Global Model Cache ---
+# --- 全局模型缓存 ---
 model_cache = {}
 
 def get_model(device, asr_model_name, vad_model_name, punc_model_name, spk_model_name):
@@ -50,9 +50,9 @@ def get_model(device, asr_model_name, vad_model_name, punc_model_name, spk_model
         punc_path = punc_models.get(punc_model_name)
         spk_path = spk_models.get(spk_model_name)
 
-        # 检查路径是否存在，如果不存在则抛出错误或使用默认值（取决于策略）
+        # 检查路径是否存在
         if not all([asr_path, vad_path, punc_path, spk_path]):
-             # 这里可以添加更详细的错误处理，例如哪个模型路径缺失
+             # 哪个模型路径缺失的错误处理
              missing = []
              if not asr_path: missing.append(f"ASR: {asr_model_name}")
              if not vad_path: missing.append(f"VAD: {vad_model_name}")
@@ -74,12 +74,12 @@ def get_model(device, asr_model_name, vad_model_name, punc_model_name, spk_model
             print(f"配置 {model_config_key} 的模型加载完成。")
         except Exception as e:
             print(f"加载模型时出错 ({model_config_key}): {e}")
-            # 可以选择在这里清除缓存条目，或者让它保留错误状态
+            # 可以选择在这里清除缓存条目
             # del model_cache[model_config_key]
             raise  # 重新抛出异常，以便 Gradio 可以显示错误
     return model_cache[model_config_key]
 
-# --- Main Processing Function for Gradio ---
+# --- Gradio 的主要处理函数 ---
 def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, spk_choice, use_srt_format):
     """处理上传的音频文件并根据选项返回结果文本"""
     if not audio_file_path:
@@ -107,30 +107,31 @@ def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, 
                     start_time = format_timestamp(sentence.get('start', 0))
                     end_time = format_timestamp(sentence.get('end', 0))
                     
-                    # Format speaker with brackets
+                    # 将说话人格式化为带方括号
                     speaker_formatted = f"[{speaker}]"
                     
                     if use_srt_format:
                         formatted_results.append(str(subtitle_index))
                         formatted_results.append(f"{start_time} --> {end_time}")
-                        # Add brackets to speaker in SRT output
+                        # 在 SRT 输出中为说话人添加方括号
                         formatted_results.append(f"{speaker_formatted}   {text}")
                         formatted_results.append("") # SRT 需要空行分隔
                         subtitle_index += 1
                     else:
-                        # Add brackets to speaker in standard output
+                        # 在标准输出中为说话人添加方括号
                         formatted_line = f"{start_time} --> {end_time}  {speaker_formatted}   {text}"
                         formatted_results.append(formatted_line)
 
-            elif 'timestamp' in result: # Fallback logic similar to before
+            elif 'timestamp' in result: # 备用逻辑
                  spk_value = result.get('spk')
                  speaker = f"spk{spk_value + 1}" if spk_value is not None and isinstance(spk_value, int) else "spkunknown"
                  text = result.get('text', '').rstrip(',.。，!！?？')
                  
-                 # Format speaker with brackets
+                 # 将说话人格式化为带方括号
                  speaker_formatted = f"[{speaker}]"
                  
                  if result.get('timestamp'):
+                     # 使用片段的第一个和最后一个时间戳
                      start_ms = result['timestamp'][0][0]
                      end_ms = result['timestamp'][-1][1]
                      start_time = format_timestamp(start_ms)
@@ -139,26 +140,26 @@ def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, 
                      if use_srt_format:
                          formatted_results.append(str(subtitle_index))
                          formatted_results.append(f"{start_time} --> {end_time}")
-                         # Add brackets to speaker in SRT output
+                         # 在 SRT 输出中为说话人添加方括号
                          formatted_results.append(f"{speaker_formatted}   {text}")
                          formatted_results.append("")
                          subtitle_index += 1
                      else:
-                         # Add brackets to speaker in standard output
+                         # 在标准输出中为说话人添加方括号
                          formatted_line = f"{start_time} --> {end_time}  {speaker_formatted}   {text}"
                          formatted_results.append(formatted_line)
-                 elif text: # Only text, no timestamp
+                 elif text: # 只有文本，没有时间戳
                      if use_srt_format:
-                         pass # Skipping for SRT if no timestamp
+                         # SRT 格式需要时间戳，跳过没有时间戳的片段
+                         pass 
                      else:
-                         # Add brackets to speaker in standard output
+                         # 在标准输出中为说话人添加方括号
                          formatted_results.append(f"{speaker_formatted}   {text}")
-            elif result.get('text', '').strip(): # Only text, no sentence_info or timestamp keys
+            elif result.get('text', '').strip(): # 只有文本，没有 sentence_info 或 timestamp 键
                 text = result.get('text', '').rstrip(',.。，!！?？')
-                # Cannot generate SRT without timestamps
+                # 没有时间戳无法生成 SRT
                 if not use_srt_format:
-                     # Speaker is unknown here, add placeholder or just text
-                     # Adding brackets around 'unknown' might be confusing, just add text
+                     # 此处说话人未知
                      formatted_results.append(text)
 
         output_text = "\n".join(formatted_results)
@@ -171,7 +172,7 @@ def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, 
         traceback.print_exc()
         return f"处理失败: {e}"
 
-# --- Gradio Interface Definition ---
+# --- Gradio 界面定义 ---
 with gr.Blocks() as demo:
     gr.Markdown("# FunASR 语音识别 (带时间戳和说话人)")
     gr.Markdown("上传音频文件，选择运行设备和模型进行识别。可选择输出 SRT 格式。")
@@ -180,7 +181,7 @@ with gr.Blocks() as demo:
         with gr.Column(scale=1):
             audio_input = gr.Audio(type="filepath", label="上传音频文件 (Upload Audio File)")
             device_select = gr.Radio(choices=["cuda", "cpu"], label="选择设备 (Select Device)", value="cuda")
-            srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式 (Output SRT Format)", value=False) # 添加复选框
+            srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式 (Output SRT Format)", value=False) # SRT格式复选框
 
             with gr.Accordion("模型配置 (Model Configuration)", open=False):
                 asr_select = gr.Dropdown(choices=list(asr_models.keys()), value=default_asr, label="ASR 模型")
@@ -195,21 +196,11 @@ with gr.Blocks() as demo:
 
     submit_button.click(
         fn=process_audio,
-        # 在输入列表中添加复选框
+        # 输入列表包含复选框
         inputs=[audio_input, device_select, asr_select, vad_select, punc_select, spk_select, srt_format_checkbox],
         outputs=[text_output]
     )
 
-# --- Launch the Gradio App ---
+# --- 启动 Gradio 应用 ---
 if __name__ == "__main__":
-    # (预加载模型的代码可以移除或注释掉，因为模型现在是动态加载的)
-    # try:
-    #     get_model("cuda") # Try loading cuda first
-    # except Exception:
-    #     print("CUDA 不可用或加载失败，尝试 CPU...")
-    #     try:
-    #         get_model("cpu")
-    #     except Exception as e:
-    #         print(f"CPU 模型也加载失败: {e}")
-
     demo.launch(inbrowser=True)
