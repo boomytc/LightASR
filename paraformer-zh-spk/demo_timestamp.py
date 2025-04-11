@@ -74,7 +74,8 @@ for result in res:
         # 使用 sentence_info 中的分句信息
         for sentence in result['sentence_info']:
             speaker = f"spk{sentence.get('spk', 'unknown')}"
-            text = sentence.get('text', '')
+            # 去除句尾标点符号
+            text = sentence.get('text', '').rstrip(',.。，!！?？')
             start_time = format_timestamp(sentence.get('start', 0))
             end_time = format_timestamp(sentence.get('end', 0))
             
@@ -83,7 +84,8 @@ for result in res:
     elif 'timestamp' in result:
         # 如果没有 sentence_info，则使用原来的处理方式
         speaker = f"spk{result.get('spk', 'unknown')}"
-        text = result.get('text', '')
+        # 去除句尾标点符号
+        text = result.get('text', '').rstrip(',.。，!！?？')
         
         for ts in result['timestamp']:
             start_time = format_timestamp(ts[0])
@@ -92,8 +94,8 @@ for result in res:
             formatted_line = f"{start_time} --> {end_time}  {speaker}   {text}"
             formatted_results.append(formatted_line)
     else:
-        # 如果没有时间戳信息，直接添加文本
-        formatted_results.append(result.get('text', ''))
+        # 如果没有时间戳信息，直接添加文本，同样去除句尾标点
+        formatted_results.append(result.get('text', '').rstrip(',.。，!！?？'))
 
 # 打印格式化的结果
 print("识别结果格式化输出:")
