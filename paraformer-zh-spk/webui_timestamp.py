@@ -191,9 +191,9 @@ with gr.Blocks() as demo:
             audio_input = gr.Audio(type="filepath", label="上传音频文件 (Upload Audio File)")
             device_select = gr.Radio(choices=["cuda", "cpu"], label="选择设备 (Select Device)", value="cuda")
             with gr.Row(): # 将复选框和数字输入放在一行
-                srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式", value=False, scale=1)
                 preset_spk_num_input = gr.Number(label="指定说话人数 (0=自动)", value=0, minimum=0, step=1, scale=1) # 添加数字输入
-            
+                srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式", value=False, scale=1)
+                
             with gr.Accordion("模型配置 (Model Configuration)", open=False):
                 asr_select = gr.Dropdown(choices=list(asr_models.keys()), value=default_asr, label="ASR 模型")
                 vad_select = gr.Dropdown(choices=list(vad_models.keys()), value=default_vad, label="VAD 模型")
