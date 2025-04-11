@@ -6,14 +6,28 @@
 from funasr import AutoModel
 import os
 import datetime
+import argparse
+import sys
 
 def format_timestamp(ms):
     """将毫秒转换为 HH:MM:SS 格式"""
     seconds = ms / 1000  # 转换为秒
     return str(datetime.timedelta(seconds=seconds)).split('.')[0]
 
-model_pwd_dir = "model"
-input_path = "/media/fl01/data01/Data/manual171_2/clean/data/wyc/manual171_2_0017.wav"
+# 添加命令行参数解析
+parser = argparse.ArgumentParser(description='使用FunASR进行语音识别并提取时间戳')
+parser.add_argument('input_path', type=str, help='输入音频文件的路径')
+parser.add_argument('--asr_model', type=str, required=True, help='ASR模型路径')
+parser.add_argument('--device', type=str, default="cuda", help='运行设备，可选cuda或cpu')
+
+args = parser.parse_args()
+
+# 检查输入文件是否存在
+if not os.path.exists(args.input_path):
+    print(f"错误: 输入文件 '{args.input_path}' 不存在!")
+    sys.exit(1)
+
+input_path = args.input_path
 
 # 获取输入文件的名称（不含扩展名）
 base_name = os.path.splitext(os.path.basename(input_path))[0]
@@ -22,16 +36,24 @@ output_dir = os.path.dirname(input_path)
 # 构建输出文件路径
 output_path = os.path.join(output_dir, f"{base_name}.txt")
 
-model = AutoModel(
-    disable_update=True,
-    device="cuda",
-    model=f"{model_pwd_dir}/paraformer_models/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
-    vad_model=f"{model_pwd_dir}/vad_models/speech_fsmn_vad_zh-cn-16k-common-pytorch",
-    punc_model=f"{model_pwd_dir}/punc_models/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
-    spk_model=f"{model_pwd_dir}/spk_models/speech_campplus_sv_zh-cn_16k-common",
-    timestamp=True,  # 需要开启时间戳
-)
+# 固定使用相对路径models目录
+model_pwd_dir = "models"
 
+# 准备模型参数
+model_params = {
+    "disable_update": True,
+    "device": args.device,
+    "model": args.asr_model,
+    "vad_model": f"{model_pwd_dir}/vad_models/speech_fsmn_vad_zh-cn-16k-common-pytorch",
+    "punc_model": f"{model_pwd_dir}/punc_models/punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+    "spk_model": f"{model_pwd_dir}/spk_models/speech_campplus_sv_zh-cn_16k-common",
+    "timestamp": True,  # 需要开启时间戳
+}
+
+print(f"加载模型参数: {model_params}")
+model = AutoModel(**model_params)
+
+print(f"正在处理音频文件: {input_path}")
 res = model.generate(
     input=input_path,
 )
