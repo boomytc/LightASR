@@ -80,19 +80,28 @@ def get_model(device, asr_model_name, vad_model_name, punc_model_name, spk_model
     return model_cache[model_config_key]
 
 # --- Gradio 的主要处理函数 ---
-def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, spk_choice, use_srt_format):
+def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, spk_choice, use_srt_format, preset_spk_num):
     """处理上传的音频文件并根据选项返回结果文本"""
     if not audio_file_path:
         return "请先上传一个音频文件。"
     if not all([asr_choice, vad_choice, punc_choice, spk_choice]):
         return "错误：请确保所有模型（ASR, VAD, PUNC, SPK）都已选择。"
 
+    # 处理说话人数量输入
+    spk_num_arg = None
+    if preset_spk_num is not None and int(preset_spk_num) > 0:
+        spk_num_arg = int(preset_spk_num)
+        print(f"指定说话人数量: {spk_num_arg}")
+    else:
+        print("未指定说话人数量，将自动检测。")
+
     print(f"接收到文件: {audio_file_path}, 设备: {device}, 模型: ASR={asr_choice}, VAD={vad_choice}, PUNC={punc_choice}, SPK={spk_choice}, SRT格式: {use_srt_format}")
 
     try:
         model = get_model(device, asr_choice, vad_choice, punc_choice, spk_choice)
         print(f"开始处理音频文件: {audio_file_path}")
-        res = model.generate(input=audio_file_path)
+        # 将 preset_spk_num 传递给 generate 函数
+        res = model.generate(input=audio_file_path, preset_spk_num=spk_num_arg)
         print("识别完成，开始格式化结果...")
 
         formatted_results = []
@@ -175,14 +184,16 @@ def process_audio(audio_file_path, device, asr_choice, vad_choice, punc_choice, 
 # --- Gradio 界面定义 ---
 with gr.Blocks() as demo:
     gr.Markdown("# FunASR 语音识别 (带时间戳和说话人)")
-    gr.Markdown("上传音频文件，选择运行设备和模型进行识别。可选择输出 SRT 格式。")
+    gr.Markdown("上传音频文件，选择运行设备和模型进行识别。可选择输出 SRT 格式，并可指定说话人数量。")
 
     with gr.Row():
         with gr.Column(scale=1):
             audio_input = gr.Audio(type="filepath", label="上传音频文件 (Upload Audio File)")
             device_select = gr.Radio(choices=["cuda", "cpu"], label="选择设备 (Select Device)", value="cuda")
-            srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式 (Output SRT Format)", value=False) # SRT格式复选框
-
+            with gr.Row(): # 将复选框和数字输入放在一行
+                srt_format_checkbox = gr.Checkbox(label="输出 SRT 格式", value=False, scale=1)
+                preset_spk_num_input = gr.Number(label="指定说话人数 (0=自动)", value=0, minimum=0, step=1, scale=1) # 添加数字输入
+            
             with gr.Accordion("模型配置 (Model Configuration)", open=False):
                 asr_select = gr.Dropdown(choices=list(asr_models.keys()), value=default_asr, label="ASR 模型")
                 vad_select = gr.Dropdown(choices=list(vad_models.keys()), value=default_vad, label="VAD 模型")
@@ -196,8 +207,8 @@ with gr.Blocks() as demo:
 
     submit_button.click(
         fn=process_audio,
-        # 输入列表包含复选框
-        inputs=[audio_input, device_select, asr_select, vad_select, punc_select, spk_select, srt_format_checkbox],
+        # 输入列表添加说话人数量输入框
+        inputs=[audio_input, device_select, asr_select, vad_select, punc_select, spk_select, srt_format_checkbox, preset_spk_num_input],
         outputs=[text_output]
     )
 
