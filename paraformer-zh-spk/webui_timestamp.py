@@ -214,4 +214,4 @@ with gr.Blocks() as demo:
 
 # --- 启动 Gradio 应用 ---
 if __name__ == "__main__":
-    demo.launch(inbrowser=True)
+    demo.launch(inbrowser=True, server_port=7861)
