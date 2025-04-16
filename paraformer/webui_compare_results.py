@@ -188,6 +188,10 @@ def plot_model_avg_cer(stats, model_names, metric_type='cer'):
     models = [item['model'] for item in data]
     values = [item['value'] for item in data]
 
+    # 计算 Y 轴范围
+    min_value = min(values) * 0.9 if min(values) > 0 else 0
+    max_value = max(values) * 1.1
+
     # 设置颜色渐变
     if metric_type == 'cer':
         # 红色到绿色渐变(红色表示较高的错误率)
@@ -234,6 +238,14 @@ def plot_model_avg_cer(stats, model_names, metric_type='cer'):
             'text': y_axis_title,
             'font': dict(size=16)
         },
+        # 设置 Y 轴范围
+        yaxis=dict(
+            range=[min_value, max_value],
+            gridcolor='lightgray'
+        ),
+        xaxis=dict(
+            gridcolor='lightgray'
+        ),
         height=600,
         template='plotly_white',
         plot_bgcolor='rgba(240,240,240,0.2)',
