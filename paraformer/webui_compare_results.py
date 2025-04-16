@@ -162,20 +162,44 @@ def plot_model_avg_cer(stats, model_names, metric_type='cer'):
         st.warning("没有足够的统计数据来生成对比图。")
         return None
 
-    models = []
-    values = []
-
+    data = []
     for model_name in model_names:
         if model_name in stats['models']:
-            models.append(model_name)
-            if metric_type == 'cer':
-                values.append(stats['models'][model_name]['avg_cer'])
-            else:  # 正确率 = 1 - CER/100
-                values.append(100 - stats['models'][model_name]['avg_cer'])
+            value = stats['models'][model_name]['avg_cer']
+            if metric_type == 'accuracy':
+                value = 100 - value  # 正确率 = 100 - CER
+            data.append({
+                'model': model_name,
+                'value': value
+            })
 
-    if not models:
+    if not data:
         st.warning("在统计数据中找不到有效模型的数据。")
         return None
+
+    # 根据指标类型排序
+    if metric_type == 'cer':
+        # 字错率降序排列（从高到低）
+        data.sort(key=lambda x: x['value'], reverse=True)
+    else:
+        # 正确率升序排列（从低到高）
+        data.sort(key=lambda x: x['value'])
+
+    models = [item['model'] for item in data]
+    values = [item['value'] for item in data]
+
+    # 设置颜色渐变
+    if metric_type == 'cer':
+        # 红色到绿色渐变(红色表示较高的错误率)
+        colors = ['rgba(220,20,60,0.8)', 'rgba(255,69,0,0.8)', 'rgba(255,140,0,0.8)', 
+                 'rgba(255,215,0,0.8)', 'rgba(154,205,50,0.8)', 'rgba(34,139,34,0.8)']
+    else:
+        # 绿色到红色渐变(绿色表示较高的正确率)
+        colors = ['rgba(34,139,34,0.8)', 'rgba(154,205,50,0.8)', 'rgba(255,215,0,0.8)', 
+                 'rgba(255,140,0,0.8)', 'rgba(255,69,0,0.8)', 'rgba(220,20,60,0.8)']
+
+    # 确保颜色数量匹配模型数量
+    model_colors = colors[:len(models)] if len(models) <= len(colors) else [colors[i % len(colors)] for i in range(len(models))]
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
@@ -183,17 +207,43 @@ def plot_model_avg_cer(stats, model_names, metric_type='cer'):
         y=values,
         text=[f"{val:.2f}%" for val in values],
         textposition='auto',
-        marker_color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'][:len(models)]
+        marker_color=model_colors,
+        marker_line_color='rgba(0,0,0,0.5)',
+        marker_line_width=1,
+        hoverinfo='x+y',
+        hovertemplate='<b>%{x}</b><br>%{y:.2f}%<extra></extra>'
     ))
 
-    title = '模型平均字错率(CER)对比' if metric_type == 'cer' else '模型平均正确率对比'
+    title = '模型平均字错率(CER)对比' if metric_type == 'cer' else '模型平均正确率(Accuracy)对比'
     y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率 (%)'  
 
     fig.update_layout(
-        title=title,
-        xaxis_title='模型名称',
-        yaxis_title=y_axis_title,
-        height=500
+        title={
+            'text': title,
+            'y':0.95,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': dict(size=20, color='black')
+        },
+        xaxis_title={
+            'text': '模型名称',
+            'font': dict(size=16)
+        },
+        yaxis_title={
+            'text': y_axis_title,
+            'font': dict(size=16)
+        },
+        height=600,
+        template='plotly_white',
+        plot_bgcolor='rgba(240,240,240,0.2)',
+        bargap=0.3,
+        margin=dict(l=50, r=50, t=80, b=80),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial"
+        )
     )
 
     return fig
@@ -206,24 +256,37 @@ def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
         st.warning("没有足够的统计数据来生成折线图。")
         return None
 
-    models = []
-    values = []
-
+    data = []
     for model_name in model_names:
         if model_name in stats['models']:
-            models.append(model_name)
-            if metric_type == 'cer':
-                values.append(stats['models'][model_name]['avg_cer'])
-            else:  # 正确率 = 1 - CER/100
-                values.append(100 - stats['models'][model_name]['avg_cer'])
+            value = stats['models'][model_name]['avg_cer']
+            if metric_type == 'accuracy':
+                value = 100 - value  # 正确率 = 100 - CER
+            data.append({
+                'model': model_name,
+                'value': value
+            })
 
-    if not models:
+    if not data:
         st.warning("在统计数据中找不到有效模型的数据。")
         return None
+
+    # 根据指标类型排序
+    if metric_type == 'cer':
+        # 字错率降序排列（从高到低）
+        data.sort(key=lambda x: x['value'], reverse=True)
+    else:
+        # 正确率升序排列（从低到高）
+        data.sort(key=lambda x: x['value'])
+
+    models = [item['model'] for item in data]
+    values = [item['value'] for item in data]
 
     fig = go.Figure()
 
     name_text = '平均CER' if metric_type == 'cer' else '平均正确率'
+    line_color = '#FF5733' if metric_type == 'cer' else '#33A1FF'
+    
     fig.add_trace(go.Scatter(
         x=models,
         y=values,
@@ -231,21 +294,93 @@ def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
         name=name_text,
         text=[f"{val:.2f}%" for val in values],
         textposition="top center",
-        line=dict(color='royalblue', width=3),
-        marker=dict(size=12)
+        textfont=dict(
+            size=14,
+            color='black'
+        ),
+        line=dict(
+            color=line_color, 
+            width=4,
+            shape='spline',
+            smoothing=1.3
+        ),
+        marker=dict(
+            size=14,
+            color=values,
+            colorscale='Viridis' if metric_type == 'accuracy' else 'RdYlGn_r',
+            line=dict(width=2, color='black')
+        ),
+        hovertemplate='<b>%{x}</b><br>%{y:.2f}%<extra></extra>'
     ))
 
-    title = '模型平均字错率(CER)对比折线图' if metric_type == 'cer' else '模型平均正确率对比折线图'
-    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率 (%)'
+    title = '模型平均字错率(CER)对比折线图' if metric_type == 'cer' else '模型平均正确率(Accuracy)对比折线图'
+    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率(Accuracy) (%)'
+
+    min_value = min(values) * 0.9 if min(values) > 0 else 0
+    max_value = max(values) * 1.1
 
     fig.update_layout(
-        title=title,
-        xaxis_title='模型名称',
-        yaxis_title=y_axis_title,
-        height=500,
+        title={
+            'text': title,
+            'y':0.95,
+            'x':0.5,
+            'xanchor': 'center',
+            'yanchor': 'top',
+            'font': dict(size=20, color='black')
+        },
+        xaxis_title={
+            'text': '模型名称',
+            'font': dict(size=16)
+        },
+        yaxis_title={
+            'text': y_axis_title,
+            'font': dict(size=16)
+        },
+        height=600,
+        template='plotly_white',
+        plot_bgcolor='rgba(240,240,240,0.2)',
+        margin=dict(l=50, r=50, t=80, b=80),
         yaxis=dict(
-            range=[0, max(values) * 1.2]
-        )
+            range=[min_value, max_value],
+            gridcolor='lightgray'
+        ),
+        xaxis=dict(
+            gridcolor='lightgray'
+        ),
+        hoverlabel=dict(
+            bgcolor="white",
+            font_size=14,
+            font_family="Arial"
+        ),
+        showlegend=False
+    )
+
+    # 添加辅助线和区域
+    fig.add_shape(
+        type="line",
+        x0=0,
+        y0=sum(values)/len(values),
+        x1=len(models)-1,
+        y1=sum(values)/len(values),
+        line=dict(
+            color="gray",
+            width=2,
+            dash="dash",
+        ),
+        name="平均值"
+    )
+    
+    # 添加平均值标签
+    fig.add_annotation(
+        x=len(models)-1,
+        y=sum(values)/len(values),
+        text=f"平均值: {sum(values)/len(values):.2f}%",
+        showarrow=True,
+        arrowhead=2,
+        arrowsize=1,
+        arrowwidth=2,
+        arrowcolor="gray",
+        font=dict(size=14)
     )
 
     return fig
@@ -320,7 +455,7 @@ def main():
 
                 # 添加单选框选择显示字错率或正确率
                 st.markdown("## 模型性能对比")
-                metric_options = ["字错率(CER)", "正确率"]
+                metric_options = ["字错率(CER)", "正确率(Accuracy)"]
                 selected_metric = st.radio("选择显示指标：", metric_options, horizontal=True)
                 
                 # 根据选择的指标类型显示相应的图表
