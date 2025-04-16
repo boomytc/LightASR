@@ -372,7 +372,7 @@ def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
         type="line",
         x0=0,
         y0=sum(values)/len(values),
-        x1=len(models)-1,
+        x1=len(models)-1 + 0.1,
         y1=sum(values)/len(values),
         line=dict(
             color="gray",
@@ -384,7 +384,7 @@ def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
     
     # 添加平均值标签
     fig.add_annotation(
-        x=len(models)-1,
+        x=len(models)-1 + 0.1,  # 向右偏移一点避免重叠
         y=sum(values)/len(values),
         text=f"平均值: {sum(values)/len(values):.2f}%",
         showarrow=True,
