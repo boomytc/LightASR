@@ -215,7 +215,7 @@ def plot_model_avg_cer(stats, model_names, metric_type='cer'):
     ))
 
     title = '模型平均字错率(CER)对比' if metric_type == 'cer' else '模型平均正确率(Accuracy)对比'
-    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率 (%)'  
+    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率(Accuracy) (%)'  
 
     fig.update_layout(
         title={
