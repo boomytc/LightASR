@@ -401,7 +401,10 @@ class CompareUI(QMainWindow):
         
         # 判断是否是处理进度信息
         if "处理进度:" in text:
-            self.terminal_output.appendHtml(f'<span style="color:lime;">{text}</span>')
+            self.terminal_output.appendHtml(f'<span style="color:#00FF00;">{text}</span>')
+        # 判断是否是资源占用信息
+        elif "GPU:" in text:
+            self.terminal_output.appendHtml(f'<span style="color:#FFA500;">{text}</span>')
         # 判断是否是失败信息
         elif "失败" in text or "错误" in text:
             self.terminal_output.appendHtml(f'<span style="color:red;">{text}</span>')
@@ -415,9 +418,21 @@ class CompareUI(QMainWindow):
     @pyqtSlot()
     def handle_stderr(self):
         data = self.process.readAllStandardError()
-        text = bytes(data).decode('utf-8', errors='replace')
-        # 使用红色显示错误信息
-        self.terminal_output.appendHtml(f'<span style="color:red;">{text.rstrip()}</span>')
+        text = bytes(data).decode('utf-8', errors='replace').rstrip()
+        
+        # 判断是否是处理进度信息
+        if "处理进度:" in text:
+            self.terminal_output.appendHtml(f'<span style="color:#00FF00;">{text}</span>')
+        # 判断是否是资源占用信息
+        elif "GPU:" in text:
+            self.terminal_output.appendHtml(f'<span style="color:#FFA500;">{text}</span>')
+        # 判断是否是失败信息
+        elif "失败" in text or "错误" in text:
+            self.terminal_output.appendHtml(f'<span style="color:red;">{text}</span>')
+        else:
+            # 其他错误信息仍然显示为红色
+            self.terminal_output.appendHtml(f'<span style="color:red;">{text}</span>')
+            
         # 自动滚动到底部
         self.terminal_output.verticalScrollBar().setValue(self.terminal_output.verticalScrollBar().maximum())
     
