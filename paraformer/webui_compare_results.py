@@ -155,83 +155,96 @@ def generate_summary_table(stats):
     return pd.DataFrame(data)
 
 
-# 生成模型平均CER对比柱状图
-def plot_model_avg_cer(stats, model_names):
-    """生成模型平均CER对比柱状图"""
+# 生成模型平均CER或正确率对比柱状图
+def plot_model_avg_cer(stats, model_names, metric_type='cer'):
+    """生成模型平均CER或正确率对比柱状图"""
     if not stats or 'models' not in stats or not stats['models'] or not model_names:
-        st.warning("没有足够的统计数据来生成平均CER对比图。")
+        st.warning("没有足够的统计数据来生成对比图。")
         return None
 
     models = []
-    avg_cers = []
+    values = []
 
     for model_name in model_names:
         if model_name in stats['models']:
             models.append(model_name)
-            avg_cers.append(stats['models'][model_name]['avg_cer'])
+            if metric_type == 'cer':
+                values.append(stats['models'][model_name]['avg_cer'])
+            else:  # 正确率 = 1 - CER/100
+                values.append(100 - stats['models'][model_name]['avg_cer'])
 
     if not models:
-        st.warning("在统计数据中找不到有效模型的平均CER数据。")
+        st.warning("在统计数据中找不到有效模型的数据。")
         return None
 
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=models,
-        y=avg_cers,
-        text=[f"{cer:.2f}%" for cer in avg_cers],
+        y=values,
+        text=[f"{val:.2f}%" for val in values],
         textposition='auto',
         marker_color=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b'][:len(models)]
     ))
 
+    title = '模型平均字错率(CER)对比' if metric_type == 'cer' else '模型平均正确率对比'
+    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率 (%)'  
+
     fig.update_layout(
-        title='模型平均字错率(CER)对比',
+        title=title,
         xaxis_title='模型名称',
-        yaxis_title='平均字错率 CER (%)',
+        yaxis_title=y_axis_title,
         height=500
     )
 
     return fig
 
 
-# 生成模型平均CER对比折线图
-def plot_model_avg_cer_line(stats, model_names):
-    """生成模型平均CER对比折线图"""
+# 生成模型平均CER或正确率对比折线图
+def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
+    """生成模型平均CER或正确率对比折线图"""
     if not stats or 'models' not in stats or not stats['models'] or not model_names:
-        st.warning("没有足够的统计数据来生成平均CER折线图。")
+        st.warning("没有足够的统计数据来生成折线图。")
         return None
 
     models = []
-    avg_cers = []
+    values = []
 
     for model_name in model_names:
         if model_name in stats['models']:
             models.append(model_name)
-            avg_cers.append(stats['models'][model_name]['avg_cer'])
+            if metric_type == 'cer':
+                values.append(stats['models'][model_name]['avg_cer'])
+            else:  # 正确率 = 1 - CER/100
+                values.append(100 - stats['models'][model_name]['avg_cer'])
 
     if not models:
-        st.warning("在统计数据中找不到有效模型的平均CER数据。")
+        st.warning("在统计数据中找不到有效模型的数据。")
         return None
 
     fig = go.Figure()
 
+    name_text = '平均CER' if metric_type == 'cer' else '平均正确率'
     fig.add_trace(go.Scatter(
         x=models,
-        y=avg_cers,
+        y=values,
         mode='lines+markers+text',
-        name='平均CER',
-        text=[f"{cer:.2f}%" for cer in avg_cers],
+        name=name_text,
+        text=[f"{val:.2f}%" for val in values],
         textposition="top center",
         line=dict(color='royalblue', width=3),
         marker=dict(size=12)
     ))
 
+    title = '模型平均字错率(CER)对比折线图' if metric_type == 'cer' else '模型平均正确率对比折线图'
+    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率 (%)'
+
     fig.update_layout(
-        title='模型平均字错率(CER)对比折线图',
+        title=title,
         xaxis_title='模型名称',
-        yaxis_title='平均字错率 CER (%)',
+        yaxis_title=y_axis_title,
         height=500,
         yaxis=dict(
-            range=[0, max(avg_cers) * 1.2]
+            range=[0, max(values) * 1.2]
         )
     )
 
@@ -252,7 +265,7 @@ def main():
         st.markdown("""
         此工具用于可视化分析模型对比测试结果，包含以下内容：
         - 模型性能总览（字错率、处理时间）
-        - 平均字错率对比图
+        - 平均字错率/正确率对比图
         """)
         
         st.markdown("---")
@@ -305,18 +318,27 @@ def main():
                 else:
                     st.info("没有足够的统计数据来显示模型性能总览。")
 
-                st.markdown("## 模型平均字错率(CER)对比")
-                avg_cer_fig = plot_model_avg_cer(stats, model_names)
-                if avg_cer_fig:
-                    st.plotly_chart(avg_cer_fig, use_container_width=True)
+                # 添加单选框选择显示字错率或正确率
+                st.markdown("## 模型性能对比")
+                metric_options = ["字错率(CER)", "正确率"]
+                selected_metric = st.radio("选择显示指标：", metric_options, horizontal=True)
+                
+                # 根据选择的指标类型显示相应的图表
+                metric_type = 'cer' if selected_metric == "字错率(CER)" else 'accuracy'
+                
+                # 生成并显示柱状图
+                avg_fig = plot_model_avg_cer(stats, model_names, metric_type)
+                if avg_fig:
+                    st.plotly_chart(avg_fig, use_container_width=True)
                 else:
-                    st.info("无法生成平均CER柱状图。")
-
-                avg_cer_line_fig = plot_model_avg_cer_line(stats, model_names)
-                if avg_cer_line_fig:
-                    st.plotly_chart(avg_cer_line_fig, use_container_width=True)
+                    st.info(f"无法生成{selected_metric}柱状图。")
+                
+                # 生成并显示折线图
+                avg_line_fig = plot_model_avg_cer_line(stats, model_names, metric_type)
+                if avg_line_fig:
+                    st.plotly_chart(avg_line_fig, use_container_width=True)
                 else:
-                    st.info("无法生成平均CER折线图。")
+                    st.info(f"无法生成{selected_metric}折线图。")
 
     else:
         st.info("👈 请在侧边栏上传结果文件进行分析")
