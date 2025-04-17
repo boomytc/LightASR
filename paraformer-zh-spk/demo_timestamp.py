@@ -1,8 +1,9 @@
 from funasr import AutoModel
 import os
-import datetime
 import argparse
 import sys
+import time
+import librosa
 
 def format_timestamp(ms):
     """将毫秒转换为 HH:MM:SS,ms 格式"""
@@ -15,6 +16,9 @@ def format_timestamp(ms):
     seconds %= 60
     
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
+
+# 记录脚本开始执行的时间
+script_start_time = time.time()
 
 # 添加命令行参数解析
 parser = argparse.ArgumentParser(description='使用FunASR进行语音识别并提取时间戳')
@@ -30,6 +34,14 @@ if not os.path.exists(args.input_path):
     sys.exit(1)
 
 input_path = args.input_path
+
+# 获取音频时长
+try:
+    audio_duration = librosa.get_duration(path=input_path)
+    print(f"音频时长: {audio_duration:.2f} 秒")
+except Exception as e:
+    print(f"获取音频时长失败: {e}")
+    audio_duration = 0
 
 # 获取输入文件的名称（不含扩展名）
 base_name = os.path.splitext(os.path.basename(input_path))[0]
@@ -56,9 +68,18 @@ print(f"加载模型参数: {model_params}")
 model = AutoModel(**model_params)
 
 print(f"正在处理音频文件: {input_path}")
+
+# 记录模型处理开始时间
+model_start_time = time.time()
+
 res = model.generate(
     input=input_path,
 )
+
+# 记录模型处理结束时间并计算处理时间
+model_end_time = time.time()
+model_processing_time = model_end_time - model_start_time
+
 print("识别结果结构：", res)  # 打印结果，查看实际的数据结构
 
 # 将结果保存到文件，格式化输出
@@ -115,3 +136,14 @@ with open(output_path, 'w', encoding='utf-8') as f:
         f.write(line + '\n')
 
 print(f"\n识别结果已保存到：{output_path}")
+
+# 计算脚本总执行时间
+script_end_time = time.time()
+script_execution_time = script_end_time - script_start_time
+
+# 输出时间统计信息
+print("\n时间统计信息:")
+print(f"脚本总执行时间: {script_execution_time:.2f} 秒")
+print(f"音频时长: {audio_duration:.2f} 秒")
+print(f"模型处理时间: {model_processing_time:.2f} 秒")
+print(f"处理耗时占比: {(model_processing_time/audio_duration)*100:.2f}%")
