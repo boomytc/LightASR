@@ -15,7 +15,7 @@ model_name_or_model_dir="/media/fl01/data01/WorkSpace/FunASR/model/paraformer_mo
 
 # data dir, which contains: train.json, val.json
 # data_dir="/media/fl01/data01/Data/Data_terminology/list/num_small_noised"
-data_dir="/media/fl01/data01/WorkSpace/SubFix/list"
+data_dir="/media/fl01/data01/Data/SpeechClip_CF/list"
 
 train_data="${data_dir}/train.jsonl"
 val_data="${data_dir}/val.jsonl"

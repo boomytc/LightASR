@@ -106,227 +106,251 @@ def parse_results_file(file_input):
     total_files_match = re.search(r'总测试数据数量: (\d+)', summary_part)
     total_time_match = re.search(r'整体任务总耗时: ([\d.]+) 秒', summary_part)
 
-    if total_files_match and total_time_match:
-        stats['total_files'] = int(total_files_match.group(1))
+    total_files = 0 
+    if total_files_match:
+        total_files = int(total_files_match.group(1))
+        stats['total_files'] = total_files 
+    else:
+        st.warning("未能从摘要中解析出 '总测试数据数量'") 
+
+    if total_time_match:
         stats['total_time'] = float(total_time_match.group(1))
+    else:
+         st.warning("未能从摘要中解析出 '整体任务总耗时'") 
 
     model_pattern = r'(\S+):\n成功处理数量: (\d+)/\d+\n平均字错率\(CER\): ([\d.]+)%\n平均识别耗时\(单条\): ([\d.]+)秒'
     model_matches = re.findall(model_pattern, summary_part)
 
     stats['models'] = {}
-    model_names_from_summary = []
+    model_names_from_summary = [] 
+
     for model_match in model_matches:
-        model_name, success_count, avg_cer, avg_time = model_match
-        model_name = model_name.strip(':')
+        model_name, success_count_str, cer_str, avg_time_str = model_match
+        model_names_from_summary.append(model_name)
+        success_count = int(success_count_str)
+        cer = float(cer_str)
+        avg_time = float(avg_time_str)
+
+        recognition_rate = None 
+        if total_files > 0:
+            recognition_rate = (success_count / total_files) * 100.0
         stats['models'][model_name] = {
-            'success_count': int(success_count),
-            'avg_cer': float(avg_cer),
-            'avg_time': float(avg_time)
+            'success_count': success_count,
+            'cer': cer,
+            'avg_time': avg_time,
+            'recognition_rate': recognition_rate 
         }
-        if model_name not in model_names_from_summary:
-            model_names_from_summary.append(model_name)
 
-    if not stats.get('models'):
-        st.error(f"未能从 {file_source_info} 的摘要部分解析出任何模型统计信息。")
-        if model_names_from_detail:
-            st.warning("将尝试使用从文件详情中解析出的模型名称。")
-            return list(model_names_from_detail), file_results, stats, content_hash
-        else:
-            return None, None, None, content_hash
+    final_model_names = model_names_from_summary
 
-    return model_names_from_summary, file_results, stats, content_hash
+    return final_model_names, file_results, stats, content_hash
 
 
 # 生成汇总统计表格
 def generate_summary_table(stats):
     """生成模型性能汇总统计表格"""
-    if not stats or 'models' not in stats:
+    if 'models' not in stats or not stats['models']:
         return None
-
     data = []
     for model_name, model_stats in stats['models'].items():
+        cer = model_stats['cer']
+        accuracy = 100.0 - cer
         data.append({
             '模型名称': model_name,
             '成功识别数量': model_stats['success_count'],
-            '平均字错率(CER)': f"{model_stats['avg_cer']:.2f}%",
-            '平均识别耗时(秒/条)': f"{model_stats['avg_time']:.3f}"
+            '平均字错率(CER)': f"{cer:.2f}%",
+            '平均正确率(Accuracy)': f"{accuracy:.2f}%", 
+            '平均识别耗时(秒/条)': f"{model_stats['avg_time']:.3f}",
+            # Format recognition rate, handle None case
+            '识别率 (%)': f"{model_stats.get('recognition_rate', 0):.2f}%" if model_stats.get('recognition_rate') is not None else 'N/A'
         })
 
-    return pd.DataFrame(data)
+    columns_order = [
+        '模型名称',
+        '成功识别数量',
+        '平均字错率(CER)',
+        '平均正确率(Accuracy)',
+        '平均识别耗时(秒/条)',
+        '识别率 (%)'
+    ]
+    df = pd.DataFrame(data)
+    return df[columns_order] 
 
 
-# 生成模型平均CER或正确率对比柱状图
+# 生成模型平均CER或正确率或识别率对比柱状图
 def plot_model_avg_cer(stats, model_names, metric_type='cer'):
-    """生成模型平均CER或正确率对比柱状图"""
-    if not stats or 'models' not in stats or not stats['models'] or not model_names:
-        st.warning("没有足够的统计数据来生成对比图。")
+    """生成模型平均CER或正确率或识别率对比柱状图"""
+    if 'models' not in stats or not stats['models']:
         return None
 
     data = []
     for model_name in model_names:
         if model_name in stats['models']:
-            value = stats['models'][model_name]['avg_cer']
-            if metric_type == 'accuracy':
-                value = 100 - value  # 正确率 = 100 - CER
-            data.append({
-                'model': model_name,
-                'value': value
-            })
+            value = None
+            if metric_type == 'cer':
+                value = stats['models'][model_name]['cer']
+            elif metric_type == 'accuracy':
+                value = 100 - stats['models'][model_name]['cer']  # 正确率 = 100 - CER
+            elif metric_type == 'recognition_rate':
+                # Use .get() with default 0 in case rate is None
+                value = stats['models'][model_name].get('recognition_rate', 0)
+
+            if value is not None:
+                data.append({
+                    'model': model_name,
+                    'value': value
+                })
 
     if not data:
-        st.warning("在统计数据中找不到有效模型的数据。")
         return None
 
-    # 根据指标类型排序
+    df = pd.DataFrame(data)
+    df = df.sort_values(by='value', ascending=(metric_type == 'cer')) # Ascending for CER, Descending for others
+
+    models = df['model'].tolist()
+    values = df['value'].tolist()
+
+    # Determine color scheme based on metric type
     if metric_type == 'cer':
-        # 字错率降序排列（从高到低）
-        data.sort(key=lambda x: x['value'], reverse=True)
-    else:
-        # 正确率升序排列（从低到高）
-        data.sort(key=lambda x: x['value'])
-
-    models = [item['model'] for item in data]
-    values = [item['value'] for item in data]
-
-    # 计算 Y 轴范围
-    min_value = min(values) * 0.9 if min(values) > 0 else 0
-    max_value = max(values) * 1.1
-
-    # 设置颜色渐变
-    if metric_type == 'cer':
-        # 红色到绿色渐变(红色表示较高的错误率)
-        colors = ['rgba(220,20,60,0.8)', 'rgba(255,69,0,0.8)', 'rgba(255,140,0,0.8)', 
-                 'rgba(255,215,0,0.8)', 'rgba(154,205,50,0.8)', 'rgba(34,139,34,0.8)']
-    else:
-        # 绿色到红色渐变(绿色表示较高的正确率)
-        colors = ['rgba(34,139,34,0.8)', 'rgba(154,205,50,0.8)', 'rgba(255,215,0,0.8)', 
+        # Red is bad (high CER)
+        colors = ['rgba(220,20,60,0.8)', 'rgba(255,69,0,0.8)', 'rgba(255,140,0,0.8)',
+                  'rgba(255,215,0,0.8)', 'rgba(154,205,50,0.8)', 'rgba(34,139,34,0.8)']
+        color_map = {model: colors[min(i, len(colors)-1)] for i, model in enumerate(reversed(models))} # Worse models get redder
+    elif metric_type == 'accuracy' or metric_type == 'recognition_rate':
+        # Green is good (high accuracy/rate)
+        colors = ['rgba(34,139,34,0.8)', 'rgba(154,205,50,0.8)', 'rgba(255,215,0,0.8)',
                  'rgba(255,140,0,0.8)', 'rgba(255,69,0,0.8)', 'rgba(220,20,60,0.8)']
+        color_map = {model: colors[min(i, len(colors)-1)] for i, model in enumerate(models)} # Better models get greener
+    else:
+        color_map = {model: 'rgba(31, 119, 180, 0.8)' for model in models} # Default blue if metric type unknown
 
-    # 确保颜色数量匹配模型数量
-    model_colors = colors[:len(models)] if len(models) <= len(colors) else [colors[i % len(colors)] for i in range(len(models))]
-
-    fig = go.Figure()
-    fig.add_trace(go.Bar(
+    fig = go.Figure(data=[go.Bar(
         x=models,
         y=values,
-        text=[f"{val:.2f}%" for val in values],
+        text=[f'{v:.2f}%' for v in values],
         textposition='auto',
-        marker_color=model_colors,
-        marker_line_color='rgba(0,0,0,0.5)',
-        marker_line_width=1,
-        hoverinfo='x+y',
+        marker_color=[color_map[model] for model in models],
         hovertemplate='<b>%{x}</b><br>%{y:.2f}%<extra></extra>'
-    ))
+    )])
 
-    title = '模型平均字错率(CER)对比' if metric_type == 'cer' else '模型平均正确率(Accuracy)对比'
-    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率(Accuracy) (%)'  
+    # Determine titles based on metric type
+    if metric_type == 'cer':
+        title = '模型平均字错率(CER)对比'
+        y_axis_title = '平均字错率 CER (%)'
+    elif metric_type == 'accuracy':
+        title = '模型平均正确率(Accuracy)对比'
+        y_axis_title = '平均正确率 (%)'
+    elif metric_type == 'recognition_rate':
+        title = '模型识别率对比'
+        y_axis_title = '识别率 (%)'
+    else:
+        title = '模型性能对比'
+        y_axis_title = '数值 (%)'
 
     fig.update_layout(
         title={
             'text': title,
-            'y':0.95,
+            'y':0.9,
             'x':0.5,
             'xanchor': 'center',
-            'yanchor': 'top',
-            'font': dict(size=20, color='black')
-        },
-        xaxis_title={
-            'text': '模型名称',
-            'font': dict(size=16)
-        },
-        yaxis_title={
-            'text': y_axis_title,
-            'font': dict(size=16)
-        },
-        # 设置 Y 轴范围
-        yaxis=dict(
-            range=[min_value, max_value],
-            gridcolor='lightgray'
-        ),
-        xaxis=dict(
-            gridcolor='lightgray'
-        ),
-        height=600,
-        template='plotly_white',
-        plot_bgcolor='rgba(240,240,240,0.2)',
-        bargap=0.3,
-        margin=dict(l=50, r=50, t=80, b=80),
-        hoverlabel=dict(
-            bgcolor="white",
-            font_size=14,
-            font_family="Arial"
-        )
+            'yanchor': 'top'},
+        xaxis_title='模型名称',
+        yaxis_title=y_axis_title,
+        yaxis_ticksuffix='%',
+        bargap=0.2, # gap between bars of adjacent location coordinates.
+        # yaxis_range=[0, max(values) * 1.1] # Adjust y-axis range slightly
+        yaxis_range=[min(values)*0.9 if min(values) > 0 else 0, max(values) * 1.1] # Dynamic range
     )
 
     return fig
 
 
-# 生成模型平均CER或正确率对比折线图
+# 生成模型平均CER或正确率或识别率对比折线图
 def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
-    """生成模型平均CER或正确率对比折线图"""
-    if not stats or 'models' not in stats or not stats['models'] or not model_names:
-        st.warning("没有足够的统计数据来生成折线图。")
+    """生成模型平均CER或正确率或识别率对比折线图"""
+    if 'models' not in stats or not stats['models']:
         return None
 
     data = []
     for model_name in model_names:
         if model_name in stats['models']:
-            value = stats['models'][model_name]['avg_cer']
-            if metric_type == 'accuracy':
-                value = 100 - value  # 正确率 = 100 - CER
-            data.append({
-                'model': model_name,
-                'value': value
-            })
+            value = None
+            if metric_type == 'cer':
+                value = stats['models'][model_name]['cer']
+            elif metric_type == 'accuracy':
+                value = 100 - stats['models'][model_name]['cer']
+            elif metric_type == 'recognition_rate':
+                value = stats['models'][model_name].get('recognition_rate', 0)
+
+            if value is not None:
+                data.append({
+                    'model': model_name,
+                    'value': value
+                })
 
     if not data:
-        st.warning("在统计数据中找不到有效模型的数据。")
         return None
 
-    # 根据指标类型排序
-    if metric_type == 'cer':
-        # 字错率降序排列（从高到低）
-        data.sort(key=lambda x: x['value'], reverse=True)
-    else:
-        # 正确率升序排列（从低到高）
-        data.sort(key=lambda x: x['value'])
+    df = pd.DataFrame(data)
+    # 折线图通常按原始模型顺序展示，或者按名称排序？这里按传入的model_names顺序
+    df['model'] = pd.Categorical(df['model'], categories=model_names, ordered=True)
+    df = df.sort_values('model')
 
-    models = [item['model'] for item in data]
-    values = [item['value'] for item in data]
+    models = df['model'].tolist()
+    values = df['value'].tolist()
 
     fig = go.Figure()
 
-    name_text = '平均CER' if metric_type == 'cer' else '平均正确率'
-    line_color = '#FF5733' if metric_type == 'cer' else '#33A1FF'
-    
+    # Determine line name and color based on metric type
+    if metric_type == 'cer':
+        name_text = '平均CER'
+        line_color = '#FF5733' # Red/Orange for error
+        colorscale = 'RdYlGn_r' # Red-Yellow-Green reversed (Red is high)
+    elif metric_type == 'accuracy':
+        name_text = '平均正确率'
+        line_color = '#33C1FF' # Blue for accuracy
+        colorscale = 'Viridis' # Green is high
+    elif metric_type == 'recognition_rate':
+        name_text = '识别率'
+        line_color = '#4CAF50' # Green for rate
+        colorscale = 'Viridis' # Green is high
+    else:
+        name_text = '指标值'
+        line_color = '#666666' # Grey default
+        colorscale = 'Plasma'
+
     fig.add_trace(go.Scatter(
         x=models,
         y=values,
         mode='lines+markers+text',
         name=name_text,
-        text=[f"{val:.2f}%" for val in values],
-        textposition="top center",
-        textfont=dict(
-            size=14,
-            color='black'
-        ),
-        line=dict(
-            color=line_color, 
-            width=4,
-            shape='spline',
-            smoothing=1.3
-        ),
+        line=dict(color=line_color, width=3),
         marker=dict(
-            size=14,
+            size=10,
             color=values,
-            colorscale='Viridis' if metric_type == 'accuracy' else 'RdYlGn_r',
-            line=dict(width=2, color='black')
+            colorscale=colorscale,
+            showscale=False, # Hide color scale bar
+            line=dict(width=1, color='DarkSlateGrey')
         ),
+        text=[f'{v:.2f}%' for v in values],
+        textposition="top center",
         hovertemplate='<b>%{x}</b><br>%{y:.2f}%<extra></extra>'
     ))
 
-    title = '模型平均字错率(CER)对比折线图' if metric_type == 'cer' else '模型平均正确率(Accuracy)对比折线图'
-    y_axis_title = '平均字错率 CER (%)' if metric_type == 'cer' else '平均正确率(Accuracy) (%)'
+    # Determine titles based on metric type
+    if metric_type == 'cer':
+        title = '模型平均字错率(CER)对比折线图'
+        y_axis_title = '平均字错率 CER (%)'
+    elif metric_type == 'accuracy':
+        title = '模型平均正确率(Accuracy)对比折线图'
+        y_axis_title = '平均正确率 (%)'
+    elif metric_type == 'recognition_rate':
+        title = '模型识别率对比折线图'
+        y_axis_title = '识别率 (%)'
+    else:
+        title = '模型性能对比折线图'
+        y_axis_title = '数值 (%)'
+
 
     min_value = min(values) * 0.9 if min(values) > 0 else 0
     max_value = max(values) * 1.1
@@ -334,65 +358,15 @@ def plot_model_avg_cer_line(stats, model_names, metric_type='cer'):
     fig.update_layout(
         title={
             'text': title,
-            'y':0.95,
+            'y':0.9,
             'x':0.5,
             'xanchor': 'center',
-            'yanchor': 'top',
-            'font': dict(size=20, color='black')
-        },
-        xaxis_title={
-            'text': '模型名称',
-            'font': dict(size=16)
-        },
-        yaxis_title={
-            'text': y_axis_title,
-            'font': dict(size=16)
-        },
-        height=600,
-        template='plotly_white',
-        plot_bgcolor='rgba(240,240,240,0.2)',
-        margin=dict(l=50, r=50, t=80, b=80),
-        yaxis=dict(
-            range=[min_value, max_value],
-            gridcolor='lightgray'
-        ),
-        xaxis=dict(
-            gridcolor='lightgray'
-        ),
-        hoverlabel=dict(
-            bgcolor="white",
-            font_size=14,
-            font_family="Arial"
-        ),
-        showlegend=False
-    )
-
-    # 添加辅助线和区域
-    fig.add_shape(
-        type="line",
-        x0=0,
-        y0=sum(values)/len(values),
-        x1=len(models)-1 + 0.1,
-        y1=sum(values)/len(values),
-        line=dict(
-            color="gray",
-            width=2,
-            dash="dash",
-        ),
-        name="平均值"
-    )
-    
-    # 添加平均值标签
-    fig.add_annotation(
-        x=len(models)-1 + 0.1,  # 向右偏移一点避免重叠
-        y=sum(values)/len(values),
-        text=f"平均值: {sum(values)/len(values):.2f}%",
-        showarrow=True,
-        arrowhead=2,
-        arrowsize=1,
-        arrowwidth=2,
-        arrowcolor="gray",
-        font=dict(size=14)
+            'yanchor': 'top'},
+        xaxis_title="模型名称",
+        yaxis_title=y_axis_title,
+        yaxis_range=[min_value, max_value],
+        yaxis_ticksuffix='%',
+        hovermode="x unified"
     )
 
     return fig
@@ -467,12 +441,19 @@ def main():
 
                 # 添加单选框选择显示字错率或正确率
                 st.markdown("## 模型性能对比")
-                metric_options = ["字错率(CER)", "正确率(Accuracy)"]
-                selected_metric = st.radio("选择显示指标：", metric_options, horizontal=True)
-                
+                metric_options = ["字错率(CER)", "正确率(Accuracy)", "识别率"]
+                selected_metric = st.radio("选择显示指标：", metric_options, horizontal=True, key='metric_radio')
+
                 # 根据选择的指标类型显示相应的图表
-                metric_type = 'cer' if selected_metric == "字错率(CER)" else 'accuracy'
-                
+                if selected_metric == "字错率(CER)":
+                    metric_type = 'cer'
+                elif selected_metric == "正确率(Accuracy)":
+                    metric_type = 'accuracy'
+                elif selected_metric == "识别率":
+                    metric_type = 'recognition_rate'
+                else:
+                    metric_type = 'cer' # Default to CER
+
                 # 生成并显示柱状图
                 avg_fig = plot_model_avg_cer(stats, model_names, metric_type)
                 if avg_fig:

@@ -6,3 +6,4 @@ models/vad_models
 __pycache__/
 *.pyc
 .vscode/settings.json
+paraformer/outputs
